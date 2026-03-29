@@ -49,6 +49,12 @@ Thanks to these wonderful people for their contributions ⭐
       </a>
     </td>
     <td>
+      <a href="https://github.com/cyal1r">
+        <img src="https://avatars.githubusercontent.com/u/33282478?v=4" width="30px;" alt=""/>
+        <br /><sub><b>cyal1</b></sub>
+      </a>
+    </td>
+    <td>
       <a href="https://github.com/badmonkey7">
         <img src="https://avatars.githubusercontent.com/u/41368882?v=4" width="30px;" alt=""/>
         <br /><sub><b>badmonkey7</b></sub>
