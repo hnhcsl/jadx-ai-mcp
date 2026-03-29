@@ -430,7 +430,38 @@ OR
 uv run jadx_mcp_server.py --http --port 9999
 ```
 
-## 6. Custom port configuration for JADX AI MCP Plugin
+### Remote / Docker / WSL Access
+
+By default the HTTP server binds to `127.0.0.1` (localhost only). To make it accessible from other machines:
+
+```bash
+# Bind to all interfaces
+uv run jadx_mcp_server.py --http --host 0.0.0.0
+
+# Bind to all interfaces on a custom port
+uv run jadx_mcp_server.py --http --host 0.0.0.0 --port 9999
+```
+
+> [!CAUTION]
+> ### ⚠️ Security Warning — Remote Binding
+>
+> When using `--host 0.0.0.0` (or any non-localhost address), the MCP server binds to **all network interfaces** over **plain HTTP with no authentication**. This means:
+>
+> - **Anyone on the network** can connect and invoke all MCP tools
+> - There is **no TLS encryption** — traffic can be intercepted
+> - An attacker can use the server to **read decompiled code**, **rename classes/methods**, and **access debug info**
+>
+> **Mitigations:**
+> - Only bind to `0.0.0.0` on **trusted, isolated networks** (e.g., Docker bridge, local VM)
+> - Use a **firewall** to restrict access to the MCP port
+> - Consider an **SSH tunnel** instead: `ssh -L 8651:127.0.0.1:8651 remote-host`
+
+### Stdio Mode Compatibility
+
+> [!NOTE]
+> When running in **stdio** mode (the default, without `--http`), all human-readable output (banner, health check) is written to **stderr** to keep **stdout** reserved for the MCP JSON-RPC stream. This ensures compatibility with Codex, Claude Desktop, and other stdio-based MCP clients.
+
+## 6. Custom port and host configuration for JADX AI MCP Plugin
 
 <img width="800" height="335" alt="image" src="https://github.com/user-attachments/assets/6243adc5-5be4-4e2d-aa16-bdaf78a28e36" />
 
@@ -444,7 +475,23 @@ To connect with JADX AI MCP Plugin running on custom port, the `--jadx-port` opt
 uv run jadx_mcp_server.py --jadx-port 8652
 ```
 
-The MCP Configuration for above will be as follows for claude:
+If the JADX AI MCP Plugin is running on a **different machine** (e.g., JADX on a remote VM, MCP server on your local host), use the `--jadx-host` option:
+```bash
+# Connect to JADX plugin on a remote host
+uv run jadx_mcp_server.py --jadx-host 192.168.1.100 --jadx-port 8650
+```
+
+### CLI Reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--http` | off | Serve over HTTP instead of stdio |
+| `--host` | `127.0.0.1` | Bind address for `--http` mode |
+| `--port` | `8651` | Port for `--http` mode |
+| `--jadx-host` | `127.0.0.1` | Hostname/IP of the JADX AI MCP Plugin |
+| `--jadx-port` | `8650` | Port of the JADX AI MCP Plugin |
+
+The MCP Configuration for custom jadx port will be as follows for claude:
 
 ```
 {
