@@ -75,6 +75,18 @@ Search for classes containing the keyword "password"
 - Locating encryption routines
 - Identifying API endpoints
 
+#### Scoped Search
+
+```
+Search for "http://" only in strings, within the "com.example.network" package
+```
+
+**Scope options:**
+- `all` (default)
+- `code`
+- `comments`
+- `strings`
+
 #### Pagination Support
 
 For large results:
@@ -96,6 +108,16 @@ Analyze the AndroidManifest.xml for security issues
 - Exported components
 - Intent filters
 - Debug flags
+
+#### Specific Manifest Components
+
+```
+Get all exported Activities from the Manifest
+```
+
+**Use cases:**
+- Deep dive into Specific Components (Activities, Services, Receivers, Providers)
+- Finding unprotected endpoints
 
 #### Strings Extraction
 
@@ -172,13 +194,23 @@ Rename class a.b.c to com.example.crypto.AESEncryption
 Rename method a() in class Helper to decryptPassword()
 ```
 
+#### Rename Variable
+
+```
+Rename variable 'str' locally inside method 'loadConfig' to 'apiKey'
+```
+
+**Benefits:**
+- Simplifies complex function analysis
+- Cleans up minified code
+
 #### Rename Package
 
 ```
 Rename package a.b to com.example.utils
 ```
 
-**Batch operation:** Renames all classes in package
+**Batch operation:** Renames all classes in the package
 
 ### 6. Debugging Support
 

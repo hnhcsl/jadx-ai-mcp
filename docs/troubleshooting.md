@@ -26,9 +26,12 @@ Before diving deep, check these basics:
 **Solutions:**
 1.  **Check Plugin Status**: Open JADX → Plugins → JADX-AI-MCP → Status. It should say "Running on port 8650".
 2.  **Restart Plugin**: JADX → Plugins → JADX-AI-MCP → Restart Server.
-3.  **Check Port**: Ensure Python script uses same port:
+3.  **Check Port & Host**: Ensure Python script targets correct JADX instance:
     ```bash
+    # Local JADX connection
     uv run jadx_mcp_server.py --jadx-port 8650
+    # Remote JADX connection
+    uv run jadx_mcp_server.py --jadx-host IP_ADDRESS --jadx-port 8650
     ```
 
 ### "Port Already in Use"

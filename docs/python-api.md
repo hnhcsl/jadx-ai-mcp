@@ -20,8 +20,10 @@ This module initializes the FastMCP server and registers all MCP tools. It handl
 ```python
 parser = argparse.ArgumentParser("MCP Server for Jadx")
 parser.add_argument("--http", help="Serve MCP Server over HTTP stream", action="store_true", default=False)
-parser.add_argument("--port", help="Port for --http (default:8651)", default=8651, type=int)
-parser.add_argument("--jadx-port", help="JADX AI MCP Plugin port (default:8650)", default=8650, type=int)
+parser.add_argument("--host", help="Host interface to bind for --http (default: 127.0.0.1)", default="127.0.0.1", type=str)
+parser.add_argument("--port", help="Port for --http (default: 8651)", default=8651, type=int)
+parser.add_argument("--jadx-host", help="JADX AI MCP Plugin host (default: 127.0.0.1)", default="127.0.0.1", type=str)
+parser.add_argument("--jadx-port", help="JADX AI MCP Plugin port (default: 8650)", default=8650, type=int)
 ```
 
 ### Usage Examples
@@ -79,9 +81,17 @@ Configuration and HTTP client management for communicating with the JADX plugin.
 ### Global Configuration
 
 ```python
+JADX_HOST: str = "127.0.0.1"
 JADX_PORT: int = 8650  # Default plugin port
-JADX_HTTP_BASE: str = f"http://127.0.0.1:{JADX_PORT}"
+JADX_HTTP_BASE: str = f"http://{JADX_HOST}:{JADX_PORT}"
 ```
+
+### Function: `set_jadx_host(host: str) -> None`
+
+**Description**: Updates the JADX plugin host configuration.
+
+**Parameters**:
+- `host` (str): IP address or hostname of the JADX AI MCP plugin
 
 ### Function: `set_jadx_port(port: int) -> None`
 
@@ -94,8 +104,9 @@ JADX_HTTP_BASE: str = f"http://127.0.0.1:{JADX_PORT}"
 
 **Example**:
 ```python
+set_jadx_host("192.168.1.100")
 set_jadx_port(8652)
-# Now all requests go to http://127.0.0.1:8652
+# Now all requests go to http://192.168.1.100:8652
 ```
 
 ### Function: `health_ping() -> Union[str, Dict[str, Any]]`
@@ -128,6 +139,9 @@ else:
 **Returns**:
 - Success: Parsed JSON dict or `{"response": text}` if not JSON
 - Failure: `{"error": "<error message>"}`
+
+**Security Feature**:
+- Uses `trust_env=False` on the `httpx.AsyncClient` to prevent system proxy interference (e.g. proxying internal requests meant for `127.0.0.1`).
 
 **Timeout**: 60 seconds
 
@@ -202,6 +216,9 @@ offset, count = PaginationUtils.validate_pagination_params(-10, 50000)
 - `fetch_function` (Callable): Async function to fetch data (typically `get_from_jadx`)
 
 **Returns**: Standardized pagination response
+
+**Error Handling (Early Return)**:
+If the `fetch_function` returns an error dictionary (i.e. containing an `"error"` key), the pagination utility will immediately return the error object. This ensures API errors are properly propagated instead of swallowed into an empty list.
 
 **Response Format**:
 ```python
@@ -377,14 +394,16 @@ Get the smali for NativeLib class and identify anti-debugging checks
 
 Full-text search capabilities across decompiled code.
 
-### Function: `search_classes_by_keyword(search_term: str, offset: int = 0, count: int = 20) -> dict`
+### Function: `search_classes_by_keyword(search_term: str, search_in: str = "all", package: str = "", offset: int = 0, count: int = 20) -> dict`
 
 **MCP Tool**: `search_classes_by_keyword`
 
-**Description**: Performs full-text search across all class source code.
+**Description**: Performs full-text search across all class source code with scope filters.
 
 **Parameters**:
 - `search_term` (str): Keyword to search for
+- `search_in` (str): Search scope: "all", "code", "comments", or "strings" (default: "all")
+- `package` (str): Limit search to specific package (default: "")
 - `offset` (int): Pagination offset (default: 0)
 - `count` (int): Results per page (default: 20)
 

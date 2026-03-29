@@ -114,7 +114,7 @@ Handles search operations across the decompiled codebase.
 | Endpoint | Method Handler | Description |
 |----------|----------------|-------------|
 | `/search-method` | `searchMethod` | Finds methods by name |
-| `/search-classes-by-keyword` | `searchClasses` | Full-text code search |
+| `/search-classes-by-keyword` | `searchClasses` | Full-text code search (supports scopes & packages) |
 
 **Implementation Note:**
 Full-text search uses JADX's incremental search index for performance.
@@ -153,6 +153,8 @@ Handles code renaming operations.
 | `/rename-class` | `renameClass` | Renames class & updates refs |
 | `/rename-method` | `renameMethod` | Renames method & updates calls |
 | `/rename-field` | `renameField` | Renames field & updates accesses |
+| `/rename-variable` | `renameVariable` | Renames local variables within a method |
+| `/rename-package` | `renamePackage` | Renames package & updates all classes |
 
 **Safety Check:**
 Validates new names against Java naming conventions before applying.

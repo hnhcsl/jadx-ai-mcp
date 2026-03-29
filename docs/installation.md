@@ -214,21 +214,71 @@ uv tool install git+https://github.com/zinja-coder/jadx-mcp-server
 }
 ```
 
-## HTTP Stream Mode (Optional)
+## Remote & Custom Configuration
 
-Run the server in HTTP mode for remote access:
+### CLI Flags Reference
+
+There are **two separate connections** and each has its own host/port.
+
+```
+┌─────────────┐    --host / --port     ┌──────────────────┐   --jadx-host / --jadx-port   ┌──────────────────┐
+│  LLM Client │ ◄──────────────────►   │  jadx-mcp-server │ ──────────────────────────►   │  JADX-GUI Plugin │
+│  (Claude,   │   Where the MCP server │                  │   Where the MCP server looks  │  (jadx-ai-mcp)   │
+│   Codex..)  │   LISTENS for clients  │                  │   for the JADX plugin         │                  │
+└─────────────┘                        └──────────────────┘                               └──────────────────┘
+```
+
+| Flag | Default | Controls |
+|------|---------|----------|
+| `--http` | off | Use HTTP transport instead of stdio |
+| `--host` | `127.0.0.1` | **Where the MCP server listens** (bind address for LLM clients) |
+| `--port` | `8651` | **Which port the MCP server listens on** |
+| `--jadx-host` | `127.0.0.1` | **Where to find the JADX plugin** (the target JADX-GUI machine) |
+| `--jadx-port` | `8650` | **Which port the JADX plugin is on** |
+
+### HTTP Stream Mode (Optional)
+
+Run the server in HTTP mode for remote access from an LLM client:
 
 ```bash
-# Default HTTP mode (port 8651)
+# Default HTTP mode (localhost:8651)
 uv run jadx_mcp_server.py --http
 
 # Custom port
 uv run jadx_mcp_server.py --http --port 9999
 ```
 
-## Custom Port Configuration
+### Remote / Docker / WSL Access
 
-### Plugin Port Configuration
+To make the MCP server accessible from other machines (e.g., if you run the MCP server in Docker, or via WSL, and the LLM client is on the host Windows machine):
+
+```bash
+# Bind to all interfaces
+uv run jadx_mcp_server.py --http --host 0.0.0.0
+
+# Bind to all interfaces on a custom port
+uv run jadx_mcp_server.py --http --host 0.0.0.0 --port 9999
+```
+
+!!! danger "Security Warning — Remote Binding"
+    When using `--host 0.0.0.0` (or any non-localhost address), the MCP server binds to **all network interfaces** over **plain HTTP with no authentication**.
+    - **Anyone on the network** can connect and invoke all MCP tools.
+    - There is **no TLS encryption** — traffic can be intercepted.
+    - An attacker can use the server to read decompiled code, modify it, and access debug info.
+    - **Mitigation:** Only bind to `0.0.0.0` on trusted, isolated networks (e.g., Docker bridge), use a firewall, or tunnel via SSH.
+
+### Remote JADX Plugin Configuration
+
+If the JADX AI MCP Plugin is running on a **different machine** (e.g., JADX on a remote VM, MCP server on your local host), use the `--jadx-host` option:
+
+```bash
+# Connect to JADX plugin on a remote host
+uv run jadx_mcp_server.py --jadx-host 192.168.1.100 --jadx-port 8650
+```
+
+### Custom Plugin Port Configuration
+
+If you change the JADX-GUI Plugin port:
 
 1. Open JADX-GUI with the plugin installed
 2. Navigate to: **Plugins → JADX-AI-MCP → Configure Port**
@@ -237,8 +287,6 @@ uv run jadx_mcp_server.py --http --port 9999
 
 ![Port Configuration](assets/port-config.png)
 
-### Server Port Configuration
-
 When using custom plugin port:
 
 ```bash
@@ -246,7 +294,7 @@ When using custom plugin port:
 uv run jadx_mcp_server.py --jadx-port 8652
 ```
 
-Update LLM client configuration:
+Update LLM client configuration appropriately:
 
 ```json
 {
@@ -258,6 +306,8 @@ Update LLM client configuration:
         "/path/to/jadx-mcp-server/",
         "run",
         "jadx_mcp_server.py",
+        "--jadx-host",
+        "192.168.1.100",
         "--jadx-port",
         "8652"
       ]

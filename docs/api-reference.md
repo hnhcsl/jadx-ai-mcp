@@ -74,19 +74,21 @@ source = await get_class_source("com.example.crypto.AES")
 
 ## Search Capabilities
 
-### `search_classes_by_keyword(search_term: str, offset: int = 0, count: int = 20)`
+### `search_classes_by_keyword(search_term: str, search_in: str = "all", package: str = "", offset: int = 0, count: int = 20)`
 
-Full-text search across all code.
+Full-text search across code with advanced scoping.
 
 **Parameters:**
 - `search_term` (str): Text to find
+- `search_in` (str): Scope ("all", "code", "comments", "strings")
+- `package` (str): Restrict to specific package (e.g., "com.example")
 - `offset` (int): Start index
 - `count` (int): Max results
 
 **Example:**
 ```python
-# Find hardcoded passwords
-results = await search_classes_by_keyword("password", count=50)
+# Find hardcoded passwords in comments only
+results = await search_classes_by_keyword("password", search_in="comments", count=50)
 
 for res in results['items']:
     print(f"Found in {res['className']}: {res['preview']}")
@@ -123,6 +125,15 @@ Parses AndroidManifest.xml.
 - Raw XML
 
 **Use Case:** Security auditing permissions and exported components.
+
+---
+
+### `get_manifest_component(type: str)`
+
+Get specific components from AndroidManifest.xml.
+
+**Parameters:**
+- `type` (str): "Activity", "Service", "Receiver", or "Provider"
 
 ---
 
@@ -174,6 +185,24 @@ await rename_class("a.b.c", "CryptoHelper")
 ```
 
 **Warning:** Affects multiple files. Use carefully.
+
+---
+
+### `rename_method(class_name: str, method_name: str, new_name: str)`
+
+Renames method and updates references.
+
+---
+
+### `rename_package(old_pkg: str, new_pkg: str)`
+
+Renames an entire package and updates declarations/imports.
+
+---
+
+### `rename_variable(class_name: str, method_name: str, old_var: str, new_var: str)`
+
+Renames a local variable inside a specific method.
 
 ---
 

@@ -80,6 +80,10 @@ SwingUtilities.invokeLater(() -> {
 - **SQL Injection**: Not applicable (no SQL database).
 - **Code Injection**: Refactoring inputs validated for Java naming rules.
 
+### Transport Security
+- **Proxy Isolation**: Python `httpx` client uses `trust_env=False` to prevent OS-level HTTP/HTTPS proxies from intercepting `127.0.0.1` traffic or routing internal API calls externally.
+- **Stdio Integrity**: When running as an MCP stdio server, all internal logging, health checks, and application banners write to `stderr`. The `stdout` stream is strictly reserved for JSON-RPC communication to prevent protocol corruption.
+
 ---
 
 ## Performance Optimization
@@ -125,7 +129,7 @@ Large APKs can have 10,000+ classes. Returning all at once causes:
 |-----------|------------|---------|---------|
 | **Plugin** | Java | 11+ | Apache 2.0 |
 | **Server** | Python | 3.10+ | Apache 2.0 |
-| **HTTP Server** | Javalin | 5.x | Apache 2.0 |
+| **HTTP Server** | Javalin | 6.x | Apache 2.0 |
 | **JSON Lib** | Jackson | 2.15+ | Apache 2.0 |
 | **MCP Lib** | FastMCP | Latest | MIT |
 | **Build** | Gradle | 7.x | Apache 2.0 |

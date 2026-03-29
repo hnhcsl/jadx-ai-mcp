@@ -26,10 +26,11 @@ Together, these components enable real-time, AI-assisted Android application ana
 - **Permission Auditing**: Identify overprivileged and unused permissions
 
 ### Development Assistance
-- **Intelligent Refactoring**: AI-assisted renaming of obfuscated code
+- **Intelligent Refactoring**: AI-assisted renaming of obfuscated classes, methods, fields, variables, and packages
 - **Debug Integration**: Runtime variable inspection and stack trace analysis
 - **Pagination Support**: Efficient handling of large APKs (10,000+ classes)
-- **Multi-Client Support**: Works with Claude, Cherry Studio, LM Studio
+- **Multi-Client Support**: Works with Claude, Cherry Studio, LM Studio, Codex
+- **Remote Access**: Docker, WSL, and remote VM support via `--host` binding
 
 ## Architecture Overview
 
@@ -59,6 +60,18 @@ graph TB
     H -->|Response| F
     I -->|Response| F
     J -->|Response| F
+```
+
+### Network Architecture
+
+There are **two separate connections** in the system:
+
+```
+┌─────────────┐    --host / --port     ┌──────────────────┐   --jadx-host / --jadx-port   ┌──────────────────┐
+│  LLM Client │ ◄──────────────────►   │  jadx-mcp-server │ ──────────────────────────►   │  JADX-GUI Plugin │
+│  (Claude,   │   Where the MCP server │                  │   Where the MCP server looks  │  (jadx-ai-mcp)   │
+│   Codex..)  │   LISTENS for clients  │                  │   for the JADX plugin         │                  │
+└─────────────┘                        └──────────────────┘                               └──────────────────┘
 ```
 
 ## Quick Start
@@ -110,7 +123,6 @@ See [Installation Guide](installation.md) for detailed instructions.
 
 ### Support
 - **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
-- **[FAQ](faq.md)** - Frequently asked questions
 - **[Contributing](contributing.md)** - Development guidelines
 
 ## 🔧 Tool Categories
@@ -118,39 +130,44 @@ See [Installation Guide](installation.md) for detailed instructions.
 ### Class Analysis Tools (10 tools)
 Tools for analyzing decompiled Java classes, methods, and fields.
 
-→ [View Class Tools](api-reference.md#class-analysis-tools)
+→ [View Class Tools](api-reference.md#class-analysis)
 
 ### Search Tools (3 tools)
-Full-text search across classes, methods, and code.
+Full-text search across classes, methods, and code with advanced scope filtering.
 
-→ [View Search Tools](api-reference.md#search-tools)
+→ [View Search Tools](api-reference.md#search-capabilities)
 
-### Resource Tools (4 tools)
-Access to AndroidManifest, strings, layouts, and resources.
+### Resource Tools (5 tools)
+Access to AndroidManifest components, strings, layouts, and resources.
 
-→ [View Resource Tools](api-reference.md#resource-tools)
+→ [View Resource Tools](api-reference.md#resource-analysis)
 
 ### Cross-Reference Tools (3 tools)
 Track usage of classes, methods, and fields across codebase.
 
-→ [View Xref Tools](api-reference.md#cross-reference-tools)
+→ [View Xref Tools](api-reference.md#cross-reference-analysis)
 
-### Refactoring Tools (4 tools)
-Rename classes, methods, fields, and packages.
+### Refactoring Tools (5 tools)
+Rename classes, methods, fields, variables, and packages.
 
-→ [View Refactor Tools](api-reference.md#refactoring-tools)
+→ [View Refactor Tools](api-reference.md#refactoring)
 
 ### Debug Tools (3 tools)
 Runtime analysis during JADX debugging sessions.
 
-→ [View Debug Tools](api-reference.md#debug-tools)
+→ [View Debug Tools](api-reference.md#debugging)
 
 ## 🔐 Security & Privacy
 
-- **Local-Only Communication**: All traffic stays on localhost (127.0.0.1)
-- **No External Connections**: Plugin and server communicate internally
+- **Secure Defaults**: Server binds to `127.0.0.1` only — remote access must be explicitly enabled
+- **No Authentication**: When binding to non-localhost with `--host 0.0.0.0`, traffic is unencrypted and unauthenticated — use only on trusted networks
+- **Proxy Isolation**: Internal HTTP requests use `trust_env=False` to prevent proxy interception
 - **No Data Collection**: No telemetry or usage tracking
+- **Stdio Safety**: Banner and health check output goes to stderr to prevent JSON-RPC stream pollution
 - **Open Source**: Fully auditable codebase
+
+!!! warning "Remote Binding"
+    When using `--host 0.0.0.0`, the MCP server is accessible to anyone on the network over plain HTTP. Use a firewall or SSH tunnel for remote access.
 
 ## Supported Platforms
 
@@ -163,9 +180,7 @@ Runtime analysis during JADX debugging sessions.
 ## 🤝 Community & Support
 
 - **GitHub Issues**: [Report bugs](https://github.com/zinja-coder/jadx-ai-mcp/issues)
-- **Discussions**: [Ask questions](https://github.com/zinja-coder/jadx-ai-mcp/discussions)
-- **Discord**: [Join community](https://discord.gg/jadx-ai-mcp)
-- **Email**: support@jadx-ai-mcp.dev
+- **GitHub Discussions**: [Ask questions](https://github.com/zinja-coder/jadx-ai-mcp/discussions)
 
 ## 📄 License
 
@@ -186,4 +201,4 @@ Apache License 2.0 - See [LICENSE](license.md)
 
 ---
 
-**Current Version**: 6.0.0 | **Last Updated**: January 2026
+**Current Version**: 6.3.0 | **Last Updated**: March 2026
