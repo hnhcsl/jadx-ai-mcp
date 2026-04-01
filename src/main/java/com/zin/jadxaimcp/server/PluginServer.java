@@ -180,6 +180,7 @@ public class PluginServer {
         app.get("/main-application-classes-names", classRoutes::handleMainApplicationClassesNames);
         app.get("/main-activity", classRoutes::handleMainActivity);
         app.get("/search-classes-by-keyword", classRoutes::handleSearchClassesByKeyword);
+        app.get("/search-progress", classRoutes::handleSearchProgress);
 
         // --- Methods ---
         app.get("/method-by-name", methodRoutes::handleMethodByName);

@@ -39,11 +39,13 @@ import java.util.regex.Pattern;
 import com.zin.jadxaimcp.utils.PaginationUtils;
 import com.zin.jadxaimcp.utils.PaginationUtils.PaginationException;
 import com.zin.jadxaimcp.utils.JadxAIMCPPluginError;
+import com.zin.jadxaimcp.utils.SearchProgressTracker;
 
 public class ClassRoutes {
     private static final Logger logger = LoggerFactory.getLogger(ClassRoutes.class);
     private final MainWindow mainWindow;
     private final PaginationUtils paginationUtils;
+    private final SearchProgressTracker progressTracker = SearchProgressTracker.getInstance();
 
     /**
      * Enum for specifying search locations in handleSearchClassesByKeyword.
@@ -571,6 +573,19 @@ public class ClassRoutes {
      *                The method searches for the keyword in specified locations and
      *                returns deduplicated class list.
      */
+
+    /**
+     * Returns the current search progress as JSON.
+     * Called by the GET /search-progress endpoint.
+     */
+    public void handleSearchProgress(Context ctx) {
+        ctx.json(progressTracker.getProgress());
+    }
+
+    /**
+     * Searches for classes containing a keyword across the configured search locations.
+      * Supports pagination and package filtering.
+     */
     public void handleSearchClassesByKeyword(Context ctx) {
         String searchTerm = ctx.queryParam("search_term");
         if (searchTerm == null || searchTerm.isEmpty()) {
@@ -584,10 +599,17 @@ public class ClassRoutes {
         // Parse search locations, default to CODE if not specified
         Set<SearchLocation> searchLocations = parseSearchLocations(ctx.queryParam("search_in"));
 
+        String searchId = null;
         try {
             JadxWrapper wrapper = mainWindow.getWrapper();
             List<JavaClass> allClasses = wrapper.getIncludedClassesWithInners();
             String term = searchTerm.toLowerCase();
+
+            // Start progress tracking
+            String locationsDesc = searchLocations.stream()
+                    .map(Enum::name).collect(Collectors.joining(","));
+            // Total work = classes × locations, cuz each location scans all classes
+            searchId = progressTracker.startSearch(locationsDesc, allClasses.size() * searchLocations.size());
 
             // Check if package filter should be applied
             // Disable package filtering for jadx obfuscated packages (p000, p001, etc.)
@@ -611,6 +633,9 @@ public class ClassRoutes {
             // Convert to list for pagination
             List<JavaClass> matchingClasses = new ArrayList<>(matchingClassesSet);
 
+            // Mark search as completed/ done
+            progressTracker.completeSearch(searchId, matchingClasses.size());
+
             logger.info("JADX AI MCP: Search completed. Found {} unique classes matching '{}' in locations: {}",
                     matchingClasses.size(), searchTerm, searchLocations);
 
@@ -622,11 +647,17 @@ public class ClassRoutes {
                     JavaClass::getFullName);
             ctx.json(result);
         } catch (PaginationException e) {
+            if (searchId != null) {
+                progressTracker.failSearch(searchId, e.getMessage());
+            }
             JadxAIMCPPluginError.handleError(ctx,
                     "Internal error while generating pagination result for handleSearchClassesByKeyword: "
                             + e.getMessage(),
                     e, logger);
         } catch (Exception e) {
+            if (searchId != null) {
+                progressTracker.failSearch(searchId, e.getMessage());
+            }
             JadxAIMCPPluginError.handleError(ctx,
                     "Internal error occurred while trying to handle the search classes by keyword mcp request: "
                             + e.getMessage(),
@@ -750,13 +781,16 @@ public class ClassRoutes {
             String packageFilter, boolean applyPackageFilter) {
         return allClasses.parallelStream()
                 .filter(cls -> {
+                    progressTracker.incrementScanned();
                     // Apply package filter if enabled
                     if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                         return false;
                     }
                     // Check if class name contains the term
                     String className = cls.getName().toLowerCase();
-                    return className.contains(term);
+                    boolean matched = className.contains(term);
+                    if (matched) progressTracker.incrementMatches();
+                    return matched;
                 })
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
@@ -773,6 +807,7 @@ public class ClassRoutes {
             String packageFilter, boolean applyPackageFilter) {
         return allClasses.parallelStream()
                 .filter(cls -> {
+                    progressTracker.incrementScanned();
                     // Apply package filter if enabled
                     if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                         return false;
@@ -782,6 +817,7 @@ public class ClassRoutes {
                         // Check method name (includes constructors <init> and static initializers
                         // <clinit>)
                         if (method.getName().toLowerCase().contains(term)) {
+                            progressTracker.incrementMatches();
                             return true;
                         }
 
@@ -789,6 +825,7 @@ public class ClassRoutes {
                         if (method.isConstructor()) {
                             String classSimpleName = cls.getName().toLowerCase();
                             if (classSimpleName.contains(term)) {
+                                progressTracker.incrementMatches();
                                 return true;
                             }
                         }
@@ -805,6 +842,7 @@ public class ClassRoutes {
             String packageFilter, boolean applyPackageFilter) {
         return allClasses.parallelStream()
                 .filter(cls -> {
+                    progressTracker.incrementScanned();
                     // Apply package filter if enabled
                     if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                         return false;
@@ -812,6 +850,7 @@ public class ClassRoutes {
                     // Check if any field name contains the term
                     for (JavaField field : cls.getFields()) {
                         if (field.getName().toLowerCase().contains(term)) {
+                            progressTracker.incrementMatches();
                             return true;
                         }
                     }
@@ -828,12 +867,15 @@ public class ClassRoutes {
         return allClasses.parallelStream()
                 .filter(cls -> {
                     try {
+                        progressTracker.incrementScanned();
                         // Apply package filter if enabled
                         if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                             return false;
                         }
                         String code = cls.getCode();
-                        return code != null && code.toLowerCase().contains(term);
+                        boolean matched = code != null && code.toLowerCase().contains(term);
+                        if (matched) progressTracker.incrementMatches();
+                        return matched;
                     } catch (Exception e) {
                         return false;
                     }
@@ -854,6 +896,7 @@ public class ClassRoutes {
         return allClasses.parallelStream()
                 .filter(cls -> {
                     try {
+                        progressTracker.incrementScanned();
                         // Apply package filter if enabled
                         if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                             return false;
@@ -864,6 +907,7 @@ public class ClassRoutes {
 
                         // Search for keyword in single-line comments
                         if (singleLineComment.matcher(code).find()) {
+                            progressTracker.incrementMatches();
                             return true;
                         }
 
@@ -872,6 +916,7 @@ public class ClassRoutes {
                         while (matcher.find()) {
                             String comment = matcher.group();
                             if (comment.toLowerCase().contains(term)) {
+                                progressTracker.incrementMatches();
                                 return true;
                             }
                         }
