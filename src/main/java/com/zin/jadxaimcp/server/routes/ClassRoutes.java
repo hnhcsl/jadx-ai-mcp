@@ -40,12 +40,14 @@ import com.zin.jadxaimcp.utils.PaginationUtils;
 import com.zin.jadxaimcp.utils.PaginationUtils.PaginationException;
 import com.zin.jadxaimcp.utils.JadxAIMCPPluginError;
 import com.zin.jadxaimcp.utils.SearchProgressTracker;
+import com.zin.jadxaimcp.utils.DecompilationCache;
 
 public class ClassRoutes {
     private static final Logger logger = LoggerFactory.getLogger(ClassRoutes.class);
     private final MainWindow mainWindow;
     private final PaginationUtils paginationUtils;
     private final SearchProgressTracker progressTracker = SearchProgressTracker.getInstance();
+    private final DecompilationCache decompilationCache = DecompilationCache.getInstance();
 
     /**
      * Enum for specifying search locations in handleSearchClassesByKeyword.
@@ -202,7 +204,12 @@ public class ClassRoutes {
             JadxWrapper wrapper = mainWindow.getWrapper();
             for (JavaClass cls : wrapper.getIncludedClassesWithInners()) {
                 if (cls.getFullName().equals(className)) {
-                    ctx.result(cls.getCode());
+                    String code = decompilationCache.get(className);
+                    if (code == null) {
+                        code = cls.getCode();
+                        decompilationCache.put(className, code);
+                    }
+                    ctx.result(code);
                     return;
                 }
             }
@@ -374,7 +381,9 @@ public class ClassRoutes {
             }
 
             ctx.json(Map.of("name", mainActivityClass.getFullName(), "type", "code/java", "content",
-                    mainActivityClass.getCode()));
+                    decompilationCache.get(mainActivityClass.getFullName()) != null
+                            ? decompilationCache.get(mainActivityClass.getFullName())
+                            : cacheAndReturn(mainActivityClass)));
         } catch (Exception e) {
             JadxAIMCPPluginError.handleError(ctx,
                     "Internal error occurred while trying to get the Main Activity class code: " + e.getMessage(), e,
@@ -518,7 +527,11 @@ public class ClassRoutes {
                 classInfo.put("name", cls.getFullName());
                 classInfo.put("type", "code/java");
                 try {
-                    String code = cls.getCode();
+                    String code = decompilationCache.get(cls.getFullName());
+                    if (code == null) {
+                        code = cls.getCode();
+                        decompilationCache.put(cls.getFullName(), code);
+                    }
                     classInfo.put("content", code);
                     logger.debug("JADX AI MCP: Successfully got code for " + cls.getFullName() +
                             " (length: " + code.length() + ")");
@@ -872,7 +885,11 @@ public class ClassRoutes {
                         if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                             return false;
                         }
-                        String code = cls.getCode();
+                        String code = decompilationCache.get(cls.getFullName());
+                        if (code == null) {
+                            code = cls.getCode();
+                            decompilationCache.put(cls.getFullName(), code);
+                        }
                         boolean matched = code != null && code.toLowerCase().contains(term);
                         if (matched) progressTracker.incrementMatches();
                         return matched;
@@ -901,7 +918,11 @@ public class ClassRoutes {
                         if (applyPackageFilter && !matchesPackageFilter(cls, packageFilter)) {
                             return false;
                         }
-                        String code = cls.getCode();
+                        String code = decompilationCache.get(cls.getFullName());
+                        if (code == null) {
+                            code = cls.getCode();
+                            if (code != null) decompilationCache.put(cls.getFullName(), code);
+                        }
                         if (code == null)
                             return false;
 
@@ -928,7 +949,101 @@ public class ClassRoutes {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    /**
+     * handles the /package-tree endpoint.
+     * returns a flat list of packages sorted by class count (descending),
+     * With a library-detection heuristic for each package.
+     */
+    public void handleGetPackageTree(Context ctx) {
+        try {
+            JadxWrapper wrapper = mainWindow.getWrapper();
+            List<JavaClass> allClasses = wrapper.getIncludedClassesWithInners();
+
+            // group classes by package
+            Map<String, Integer> packageCounts = new HashMap<>();
+            for (JavaClass cls : allClasses) {
+                String fullName = cls.getFullName();
+                int lastDot = fullName.lastIndexOf('.');
+                String pkg = lastDot > 0 ? fullName.substring(0, lastDot) : "(default)";
+                packageCounts.merge(pkg, 1, Integer::sum);
+            }
+
+            // build sorted list (descending by class count)
+            List<Map<String, Object>> packages = packageCounts.entrySet().stream()
+                    .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                    .map(entry -> {
+                        Map<String, Object> pkg = new HashMap<>();
+                        pkg.put("name", entry.getKey());
+                        pkg.put("class_count", entry.getValue());
+                        pkg.put("is_likely_library", isLikelyLibrary(entry.getKey()));
+                        return pkg;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("total_classes", allClasses.size());
+            result.put("total_packages", packages.size());
+            result.put("packages", packages);
+            ctx.json(result);
+        } catch (Exception e) {
+            JadxAIMCPPluginError.handleError(ctx,
+                    "Internal error building package tree: " + e.getMessage(), e, logger);
+        }
+    }
+
+    /**
+     * returns cache statistics (hits, misses, size, compression ratio).
+     */
+    public void handleCacheStats(Context ctx) {
+        ctx.json(decompilationCache.getStats());
+    }
+
+    /**
+     * clears the decompilation cache and resets all counters.
+     */
+    public void handleCacheClear(Context ctx) {
+        decompilationCache.clear();
+        ctx.json(Map.of("status", "cleared", "stats", decompilationCache.getStats()));
+    }
+
+    // known library package prefixes for the is_likely_library heuristic
+    private static final String[] LIBRARY_PREFIXES = {
+            "androidx.", "android.support.", "com.google.", "com.android.",
+            "kotlin.", "kotlinx.", "okhttp3.", "okio.", "retrofit2.",
+            "com.squareup.", "io.reactivex.", "rx.", "dagger.",
+            "com.facebook.", "com.amazonaws.", "org.apache.", "org.json.",
+            "com.fasterxml.", "org.slf4j.", "javax.", "junit.",
+            "io.netty.", "com.bumptech.glide.", "org.greenrobot.",
+            "com.airbnb.", "io.realm.", "bolts.", "butterknife."
+    };
+
+    /**
+     * heuristic to detect whether a package is likely a third-party library.
+     * Uses prefix matching against known library namespaces.
+     */
+    private boolean isLikelyLibrary(String packageName) {
+        if (packageName == null) return false;
+        for (String prefix : LIBRARY_PREFIXES) {
+            if (packageName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        // jadx obfuscated packages (p000, p001...) are app code, not libraries
+        return false;
+    }
+
     // -------------------------------- Helper methods ----------------------------
+
+    /**
+     * decompile a class, store in cache, and return the source code.
+     */
+    private String cacheAndReturn(JavaClass cls) {
+        String code = cls.getCode();
+        if (code != null) {
+            decompilationCache.put(cls.getFullName(), code);
+        }
+        return code;
+    }
 
     /**
      * @param Context
