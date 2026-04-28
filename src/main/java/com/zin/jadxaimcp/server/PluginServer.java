@@ -164,9 +164,11 @@ public class PluginServer {
         RefactoringRoutes refactoringRoutes = new RefactoringRoutes(mainWindow);
         DebugRoutes debugRoutes = new DebugRoutes(mainWindow);
         XrefsRoutes xrefsRoutes = new XrefsRoutes(mainWindow);
+        ProjectRoutes projectRoutes = new ProjectRoutes(mainWindow);
 
         // --- General & Health ---
         app.get("/health", generalRoutes::handleHealth);
+        app.get("/open-apk", projectRoutes::handleOpenApk);
 
         // --- Class & Code Navigation ---
         app.get("/current-class", classRoutes::handleCurrentClass);

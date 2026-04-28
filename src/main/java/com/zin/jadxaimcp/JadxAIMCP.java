@@ -61,11 +61,44 @@ public class JadxAIMCP implements JadxPlugin {
 
     @Override
     public void init(JadxPluginContext context) {
-        if (context.getGuiContext() == null) {
-            logger.info("JADX-AI-MCP Plugin: Running in non-GUI mode, plugin features disabled.");
-            return;
-        }
+        logger.info("JADX-AI-MCP Plugin: Initializing...");
+        
+        // Start initialization in a background thread to wait for GUI
+        new Thread(() -> {
+            try {
+                // Poll for MainWindow for up to 30 seconds
+                for (int i = 0; i < 60; i++) {
+                    MainWindow foundWindow = findMainWindow(context);
+                    if (foundWindow != null) {
+                        this.mainWindow = foundWindow;
+                        logger.info("JADX-AI-MCP Plugin: Main Window detected after {} attempts", i + 1);
+                        initializeWithGui(context);
+                        return;
+                    }
+                    Thread.sleep(500);
+                }
+                logger.warn("JADX-AI-MCP Plugin: GUI not detected after timeout. Plugin features disabled.");
+            } catch (Exception e) {
+                logger.error("JADX-AI-MCP Plugin: Initialization error: " + e.getMessage(), e);
+            }
+        }, "JADX-AI-MCP-Init").start();
+    }
 
+    private MainWindow findMainWindow(JadxPluginContext context) {
+        // 1. Try via context
+        if (context.getGuiContext() != null) {
+            return (MainWindow) context.getGuiContext().getMainFrame();
+        }
+        // 2. Try via AWT frames (robust fallback)
+        for (java.awt.Frame frame : java.awt.Frame.getFrames()) {
+            if (frame instanceof MainWindow) {
+                return (MainWindow) frame;
+            }
+        }
+        return null;
+    }
+
+    private void initializeWithGui(JadxPluginContext context) {
         // Cleanup previous instance if JADX initializes the plugin multiple times
         if (activeInstance != null) {
             activeInstance.cleanup();
@@ -73,7 +106,9 @@ public class JadxAIMCP implements JadxPlugin {
         activeInstance = this;
 
         try {
-            this.mainWindow = (MainWindow) context.getGuiContext().getMainFrame();
+            if (this.mainWindow == null) {
+                this.mainWindow = (MainWindow) context.getGuiContext().getMainFrame();
+            }
             if (this.mainWindow == null) {
                 logger.error("JADX-AI-MCP Plugin: Main Window is null.");
                 return;
@@ -88,10 +123,10 @@ public class JadxAIMCP implements JadxPlugin {
             this.pluginMenu.addMenuItems();
 
             // 3. Start Server Lifecycle
-            logger.info("JADX-AI-MCP Plugin: Initializing...");
+            logger.info("JADX-AI-MCP Plugin: Starting server lifecycle...");
             startDelayedInitialization();
         } catch (Exception e) {
-            logger.error("JADX-AI-MCP Plugin: Initialization error: " + e.getMessage(), e);
+            logger.error("JADX-AI-MCP Plugin: GUI Initialization error: " + e.getMessage(), e);
         }
     }
 
@@ -126,30 +161,21 @@ public class JadxAIMCP implements JadxPlugin {
             return t;
         });
 
-        // Wait for JADX to load content before starting server
-        scheduler.scheduleAtFixedRate(() -> {
+        // Start server after a short delay (2s) to let JADX UI stabilize
+        // We no longer wait for isJadxFullyLoaded() so that the /open-apk 
+        // endpoint can be used to load the first APK.
+        scheduler.schedule(() -> {
             try {
-                if (isServerRunning()) {
-                    scheduler.shutdown();
-                    return;
-                }
-                if (isJadxFullyLoaded()) {
-                    logger.info("JADX-AI-MCP Plugin: JADX ready, starting server...");
+                if (!isServerRunning()) {
+                    logger.info("JADX-AI-MCP Plugin: Starting server...");
                     startServer();
-                    scheduler.shutdown();
                 }
             } catch (Exception e) {
-                logger.error("JADX-AI-MCP Plugin: Init error: " + e.getMessage());
+                logger.error("JADX-AI-MCP Plugin: Startup error: " + e.getMessage());
+            } finally {
+                scheduler.shutdown();
             }
-        }, 2, 1, TimeUnit.SECONDS);
-
-        // Fallback timeout (30s)
-        scheduler.schedule(() -> {
-            if (!isServerRunning()) {
-                logger.warn("JADX-AI-MCP Plugin: Timeout waiting for JADX. Forcing start...");
-                startServer();
-            }
-        }, 30, TimeUnit.SECONDS);
+        }, 2, TimeUnit.SECONDS);
     }
 
     /**

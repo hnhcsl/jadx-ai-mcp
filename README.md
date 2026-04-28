@@ -143,6 +143,11 @@ Thanks to these wonderful people for their contributions ⭐
 
 Think: "Decompile → Context-Aware Code Review → AI Recommendations" — all in real time.
 
+### 🌟 Key New Features
+- **🚀 Automated APK Loading**: Load APKs directly via MCP command. No manual file-opening required.
+- **🛡️ Robust GUI Discovery**: Enhanced background polling ensures the MCP server starts reliably even during slow JADX-GUI initializations.
+- **🤖 Headless-Friendly**: Optimized for environments where JADX-GUI might be backgrounded.
+
 #### High Level Sequence Diagram
 
 ```mermaid
@@ -202,6 +207,7 @@ It is combination of two tools:
 
 The following MCP tools are available:
 
+- `open_apk(path)` — Load an APK or project file into JADX-GUI directly from the LLM
 - `fetch_current_class()` — Get the class name and full source of selected class
 - `get_selected_text()` — Get currently selected text
 - `get_all_classes()` — List all classes in the project
